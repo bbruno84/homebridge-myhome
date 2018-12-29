@@ -62,7 +62,7 @@ class LegrandMyHome {
 			if (accessory.accessory == 'MHThermostat') this.devices.push(new MHThermostat(this.log,accessory))
 			if (accessory.accessory == 'MHExternalThermometer') this.devices.push(new MHThermometer(this.log,accessory))
 			if (accessory.accessory == 'MHContactSensor') this.devices.push(new MHContactSensor(this.log,accessory))
-			/* if (accessory.accessory == 'MHButton') this.devices.push(new MHButton(this.log,accessory)) */
+			if (accessory.accessory == 'MHButton') this.devices.push(new MHButton(this.log,accessory))
 			/* if (accessory.accessory == 'MHPowerMeter') this.devices.push(new MHPowerMeter(this.log,accessory)) */
 		}.bind(this));
 		this.log.info("LegrandMyHome for MyHome Gateway at " + config.ipaddress + ":" + config.port);
@@ -88,6 +88,24 @@ class LegrandMyHome {
 				accessory.bri = _onoff * 100;
 				accessory.lightBulbService.getCharacteristic(Characteristic.On).getValue(null);
 			}
+		}.bind(this));
+	}
+
+	onCen(_number, _button, _state) {
+		this.devices.forEach(function(accessory) {
+			if (accessory.number == _number && accessory.firstbutton == _button && accessory.programmableSwitchService1 !== undefined) {
+					if (_state == 0) {
+						accessory.programmableSwitchService1.getCharacteristic(Characteristic.ProgrammableSwitchEvent).setValue(_state);
+					} else if (_state == 2){
+						accessory.programmableSwitchService1.getCharacteristic(Characteristic.ProgrammableSwitchEvent).setValue(_state);
+						}; 
+			} else if (accessory.number == _number && accessory.secondbutton == _button && accessory.programmableSwitchService2 !== undefined) {
+				if (_state == 0) {
+					accessory.programmableSwitchService2.getCharacteristic(Characteristic.ProgrammableSwitchEvent).setValue(_state);
+				} else if (_state == 2){
+					accessory.programmableSwitchService2.getCharacteristic(Characteristic.ProgrammableSwitchEvent).setValue(_state);
+					}; 
+		}
 		}.bind(this));
 	}
 
@@ -240,7 +258,7 @@ class MHRelay {
 			.setCharacteristic(Characteristic.SerialNumber, "Address " + this.address);
 
 		switch (this.config.accessory) {
-			case 'MHRelayOutlet':
+			case 'MHOutlet':
 				this.lightBulbService = new Service.Outlet(this.name);
 				break;
 			default:
@@ -725,13 +743,13 @@ class MHButton {
 		this.config = config || {};
 		this.mh = config.parent.controller;
 		this.name = config.name;
-		this.address = config.address;
+		this.firstbutton = config.firstbutton;
+		this.secondbutton = config.secondbutton;
+		this.number = config.number;
 		this.displayName = config.name;
 		this.UUID = UUIDGen.generate(sprintf("button-%s",config.address));
 		this.log = log;
-		
-		this.value = 0;
-		this.log.info(sprintf("LegrandMyHome::MHButton (CEN/CEN+) create object: %s", this.address));
+		this.log.info(sprintf("LegrandMyHome::MHButton (CEN/CEN+) create object: %s", this.number));
 	}
 
 	getServices() {
@@ -739,18 +757,26 @@ class MHButton {
 		service.setCharacteristic(Characteristic.Name, this.name)
 			.setCharacteristic(Characteristic.Manufacturer, "Legrand MyHome")
 			.setCharacteristic(Characteristic.Model, "CEN/CEN+")
-			.setCharacteristic(Characteristic.SerialNumber, "Address " + this.address);
+			.setCharacteristic(Characteristic.SerialNumber, this.number + " " + this.firstbutton + "/" + this.secondbutton);
 
-		this.statelessSwitch = new Service.Switch(this.name);
-		this.statelessSwitch.getCharacteristic(Characteristic.On)
-			.on('set', (value,callback) => {
-				this.log.info(sprintf("setOn %s = %s",this.address, value));
-				callback(null);
-			})
-			.on('get', (callback) => {
-				this.log.info(sprintf("getOn %s",this.address));
-				callback(null,0);
-			});
-		return [service, this.statelessSwitch];
+		this.programmableSwitchService1 = new Service.StatelessProgrammableSwitch(this.name, 'The First');
+		this.programmableSwitchService1.getCharacteristic(Characteristic.ServiceLabelIndex).setValue(1);
+		this.programmableSwitchService1.getCharacteristic(Characteristic.ProgrammableSwitchEvent)
+		.setProps({ validValues: [0,2]})
+		.on('set', (value,callback) => {
+			callback(null,this.value);
+		});
+
+		
+		this.programmableSwitchService2 = new Service.StatelessProgrammableSwitch('The Second', 'The Second');
+		this.programmableSwitchService2.getCharacteristic(Characteristic.ServiceLabelIndex).setValue(2);
+	    this.programmableSwitchService2.getCharacteristic(Characteristic.ProgrammableSwitchEvent)
+		.setProps({ validValues: [0,2]})
+		.on('set', (value,callback) => {
+			callback(null,this.value);
+		});
+	
+			
+		return [service, this.programmableSwitchService1, this.programmableSwitchService2];
 	}	
 }
